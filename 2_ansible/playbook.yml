@@ -1,0 +1,61 @@
+---
+- name: Configure hosts with required packages and settings
+  hosts: all
+  become: yes
+  tasks:
+    - name: Check if wireplumber is installed
+      ansible.builtin.yum:
+        name: wireplumber
+        state: absent
+      ignore_errors: yes
+
+    - name: Add Google Chrome repository
+      ansible.builtin.yum_repository:
+        name: google-chrome
+        description: Google Chrome Repo
+        baseurl: http://dl.google.com/linux/chrome/rpm/stable/x86_64
+        gpgcheck: yes
+        enabled: yes
+        gpgkey: https://dl.google.com/linux/linux_signing_key.pub
+
+    - name: Ensure required packages are installed
+      ansible.builtin.yum:
+        name:
+          - google-chrome-stable
+          - bzip2
+          - perl
+        state: present
+
+    - name: Start Chrome in the background
+      ansible.builtin.shell: "google-chrome-stable &"
+      ignore_errors: yes  # Ignore if Chrome can't start due to environment restrictions
+
+    - name: Download and extract tgz file to /var/tmp
+      ansible.builtin.get_url:
+        url: http://www.sbeams.org/sample_data/Microarray/External_test_data.tar.gz
+        dest: /var/tmp/External_test_data.tar.gz
+        mode: '0644'
+      notify: extract_tgz
+
+    - name: Create backup of /etc/hosts before modification
+      ansible.builtin.copy:
+        src: /etc/hosts
+        dest: /etc/hosts.bak
+        backup: yes
+
+    - name: Add entries to /etc/hosts file
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "{{ item }}"
+        create: yes
+      loop:
+        - "1.2.3.4 host1"
+        - "3.4.2.1 host2"
+        - "5.6.3.2 host3"
+
+  handlers:
+    - name: extract_tgz
+      ansible.builtin.unarchive:
+        src: /var/tmp/External_test_data.tar.gz
+        dest: /var/tmp
+        remote_src: yes
